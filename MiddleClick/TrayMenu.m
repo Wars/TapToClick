@@ -8,7 +8,6 @@
 {
   [super init];
   myController = ctrl;
-  [self setChecks];
   return self;
 }
 
@@ -17,29 +16,6 @@
   NSURL* url = [NSURL
                 URLWithString:@"https://github.com/DaFuqtor/MiddleClick"];
   [[NSWorkspace sharedWorkspace] openURL:url];
-}
-
-- (void)setClick:(id)sender
-{
-  [myController setMode:YES];
-  [self setChecks];
-}
-
-- (void)setTap:(id)sender
-{
-  [myController setMode:NO];
-  [self setChecks];
-}
-
-- (void)setChecks
-{
-  if ([myController getClickMode]) {
-    [clickItem setState:NSControlStateValueOn];
-    [tapItem setState:NSControlStateValueOff];
-  } else {
-    [clickItem setState:NSControlStateValueOff];
-    [tapItem setState:NSControlStateValueOn];
-  }
 }
 
 - (void)actionQuit:(id)sender
@@ -53,9 +29,6 @@
   NSMenuItem* menuItem;
   
   
-  
-  int fingersQua = [[NSUserDefaults standardUserDefaults] integerForKey:@"fingers"];
-  
   // Add About
   menuItem = [menu addItemWithTitle:@"About MiddleClick"
                              action:@selector(openWebsite:)
@@ -64,17 +37,7 @@
   
   [menu addItem:[NSMenuItem separatorItem]];
   
-  clickItem = [menu addItemWithTitle:[NSString stringWithFormat: @"%d Finger Click", fingersQua]
-                              action:@selector(setClick:)
-                       keyEquivalent:@""];
-  [clickItem setTarget:self];
-  
-  tapItem = [menu addItemWithTitle:[NSString stringWithFormat: @"%d Finger Tap", fingersQua]
-                            action:@selector(setTap:)
-                     keyEquivalent:@""];
   [tapItem setTarget:self];
-  
-  [self setChecks];
   
   // Add Separator
   [menu addItem:[NSMenuItem separatorItem]];

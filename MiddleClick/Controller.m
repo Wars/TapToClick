@@ -35,18 +35,23 @@ CFMutableArrayRef MTDeviceCreateList(void);
 void MTRegisterContactFrameCallback(MTDeviceRef, MTContactCallbackFunction);
 void MTDeviceStart(MTDeviceRef, int); // thanks comex
 void MTDeviceStop(MTDeviceRef);
+bool MTDeviceIsBuiltIn(MTDeviceRef);
 
 #pragma mark Globals
 
-NSDate* touchStartTime;
-float middleclickX, middleclickY;
-float middleclickX2, middleclickY2;
+double touchStartTime;
+
 
 BOOL needToClick;
-long fingersQua;
-BOOL threeDown;
-BOOL maybeMiddleClick;
-BOOL wasThreeDown;
+typedef NS_ENUM (NSInteger, TouchType) {
+   zero,
+   one,
+   multi
+};
+TouchType state = zero;
+float touchStartX, touchEndX;
+float touchStartY, touchEndY;
+double lastClickTime = 0;
 
 #pragma mark Implementation
 
@@ -56,28 +61,21 @@ BOOL wasThreeDown;
 
 - (void)start
 {
-  threeDown = NO;
-  wasThreeDown = NO;
-  
-  fingersQua = [[NSUserDefaults standardUserDefaults] integerForKey:@"fingers"];
-  
-  needToClick =
-  [[NSUserDefaults standardUserDefaults] boolForKey:@"needClick"];
-  
-  NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+  NSLog(@"starting");
   [NSApplication sharedApplication];
   
   // Get list of all multi touch devices
   NSMutableArray* deviceList = (NSMutableArray*)MTDeviceCreateList(); // grab our device list
-  
-  // Iterate and register callbacks for multitouch devices.
-  for (int i = 0; i < [deviceList count]; i++) // iterate available devices
-  {
-    MTRegisterContactFrameCallback((MTDeviceRef)[deviceList objectAtIndex:i],
-                                   touchCallback); // assign callback for device
-    MTDeviceStart((MTDeviceRef)[deviceList objectAtIndex:i],
-                  0); // start sending events
+  MTDeviceRef magicMouse = NULL;
+  for (int i = 0; i < [deviceList count]; i++) { // iterate available devices
+      MTDeviceRef device = (MTDeviceRef)[deviceList objectAtIndex:i];
+      if  (!MTDeviceIsBuiltIn(device)) {
+          magicMouse = device;
+      }
   }
+  if (magicMouse == NULL) return;
+  MTRegisterContactFrameCallback(magicMouse, touchCallback); // assign callback for device
+  MTDeviceStart(magicMouse, 0); // start sending events
   
   // register a callback to know when osx come back from sleep
   [[[NSWorkspace sharedWorkspace] notificationCenter]
@@ -112,34 +110,7 @@ BOOL wasThreeDown;
   
   // when displays are reconfigured restart of the app is needed, so add a calback to the
   // reconifguration of Core Graphics
-  CGDisplayRegisterReconfigurationCallback(displayReconfigurationCallBack, self);
-  
-  // we only want to see left mouse down and left mouse up, because we only want
-  // to change that one
-  CGEventMask eventMask = (CGEventMaskBit(kCGEventLeftMouseDown) | CGEventMaskBit(kCGEventLeftMouseUp));
-  
-  // create eventTap which listens for core grpahic events with the filter
-  // sepcified above (so left mouse down and up again)
-  CFMachPortRef eventTap = CGEventTapCreate(
-                                            kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
-                                            eventMask, mouseCallback, NULL);
-  
-  if (eventTap) {
-    // Add to the current run loop.
-    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource,
-                       kCFRunLoopCommonModes);
-    
-    // Enable the event tap.
-    CGEventTapEnable(eventTap, true);
-    
-    // release pool before exit
-    [pool release];
-  } else {
-    NSLog(@"Couldn't create event tap! Check accessibility permissions.");
-    [[NSUserDefaults standardUserDefaults] setBool:1 forKey:@"NSStatusItem Visible Item-0"];
-    [self scheduleRestart:5];
-  }
+//  CGDisplayRegisterReconfigurationCallback(displayReconfigurationCallBack, self);
 }
 
 /// Schedule app to be restarted, if a restart is pending, delay it.
@@ -150,7 +121,7 @@ BOOL wasThreeDown;
   _restartTimer = [NSTimer scheduledTimerWithTimeInterval:delay
                                                   repeats:NO
                                                     block:^(NSTimer* timer) {
-                                                      restartApp();
+                                                      [self start];
                                                     }];
 }
 
@@ -160,142 +131,76 @@ BOOL wasThreeDown;
   [self scheduleRestart:10];
 }
 
-- (BOOL)getClickMode
-{
-  return needToClick;
-}
-
-- (void)setMode:(BOOL)click
-{
-  [[NSUserDefaults standardUserDefaults] setBool:click forKey:@"needClick"];
-  needToClick = click;
-}
-
-// listening to mouse clicks to replace them with middle clicks if there are 3
-// fingers down at the time of clicking this is done by replacing the left click
-// down with a other click down and setting the button number to middle click
-// when 3 fingers are down when clicking, and by replacing left click up with
-// other click up and setting three button number to middle click when 3 fingers
-// were down when the last click went down.
-CGEventRef mouseCallback(CGEventTapProxy proxy, CGEventType type,
-                         CGEventRef event, void* refcon)
-{
-  if (needToClick) {
-    if (threeDown && type == kCGEventLeftMouseDown) {
-      wasThreeDown = YES;
-      CGEventSetType(event, kCGEventOtherMouseDown);
-      CGEventSetIntegerValueField(event, kCGMouseEventButtonNumber,
-                                  kCGMouseButtonCenter);
-      threeDown = NO;
-    }
-    
-    if (wasThreeDown && type == kCGEventLeftMouseUp) {
-      wasThreeDown = NO;
-      CGEventSetType(event, kCGEventOtherMouseUp);
-      CGEventSetIntegerValueField(event, kCGMouseEventButtonNumber,
-                                  kCGMouseButtonCenter);
-    }
-  }
-  return event;
-}
-
 // mulittouch callback, see what is touched. If 3 are on the mouse set
 // threedowns, else unset threedowns.
 int touchCallback(int device, Finger* data, int nFingers, double timestamp,
                   int frame)
 {
   NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
-  fingersQua = [[NSUserDefaults standardUserDefaults] integerForKey:@"fingers"];
   
-  if (needToClick) {
-    if (nFingers == fingersQua) {
-      if (!threeDown) {
-        threeDown = YES;
+  switch (state) {
+    case zero:
+      if (nFingers == 1) {
+        state = one;
+        touchStartTime = timestamp;
+        Finger* f = &data[0];
+        touchStartX = f->normalized.pos.x;
+        touchStartY = f->normalized.pos.y;
+      } else if (nFingers > 1) {
+        state = multi;
       }
-    }
+      break;
+    case multi:
+      if (nFingers == 0) {
+        state = zero;
+        touchStartTime = 0;
+      }
+      // if nFingers == 1, we stay here waiting for nFingers == 0
+      break;
+    case one:
+      if (nFingers == 0) {
+        state = zero;
+        double deltaTime = timestamp - touchStartTime;
+        touchStartTime = 0;
+        
+        // confirm it's a tap event, rather than long click or swipe
+        if (deltaTime > 0.3f) break;
+        
+        float deltaSwipe = ABS(touchStartX - touchEndX) + ABS(touchStartY - touchEndY);
+        if (deltaSwipe > 0.1f) break;
     
-    if (nFingers != fingersQua) {
-      if (threeDown) {
-        threeDown = NO;
-      }
-    }
-  } else {
-    if (nFingers == 0) {
-      touchStartTime = NULL;
-      if (middleclickX + middleclickY) {
-        float delta = ABS(middleclickX - middleclickX2) + ABS(middleclickY - middleclickY2);
-        if (delta < 0.4f) {
-          // Emulate a middle click
-          
-          // get the current pointer location
-          CGEventRef ourEvent = CGEventCreate(NULL);
-          CGPoint ourLoc = CGEventGetLocation(ourEvent);
-          
-          CGEventPost(kCGHIDEventTap,
-                      CGEventCreateMouseEvent(NULL, kCGEventOtherMouseDown,
-                                              ourLoc, kCGMouseButtonCenter));
-          CGEventPost(kCGHIDEventTap,
-                      CGEventCreateMouseEvent(NULL, kCGEventOtherMouseUp,
-                                              ourLoc, kCGMouseButtonCenter));
+        // trigger click event
+        CGPoint pointerLocation = CGEventGetLocation(CGEventCreate(NULL));
+        if (touchEndX < 0.4f) { // left click
+          bool isDoubleClick = (timestamp - lastClickTime) < 0.3f;
+          lastClickTime = timestamp;
+          CGEventRef clickEvent = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, pointerLocation, kCGMouseButtonLeft);
+          CGEventSetIntegerValueField(clickEvent, kCGMouseEventClickState, isDoubleClick ? 2 : 1);
+          CGEventPost(kCGHIDEventTap, clickEvent);
+          CGEventSetType(clickEvent, kCGEventLeftMouseUp);
+          CGEventPost(kCGHIDEventTap, clickEvent);
+          CFRelease(clickEvent);
+        } else if (touchEndX > 0.5f) { // right click
+          CGEventRef clickEvent = CGEventCreateMouseEvent(NULL, kCGEventRightMouseDown, pointerLocation, kCGMouseButtonRight);
+          CGEventPost(kCGHIDEventTap, clickEvent);
+          CGEventSetType(clickEvent, kCGEventRightMouseUp);
+          CGEventPost(kCGHIDEventTap, clickEvent);
+          CFRelease(clickEvent);
         }
-      }
-    } else if (nFingers > 0 && touchStartTime == NULL) {
-      NSDate* now = [[NSDate alloc] init];
-      touchStartTime = [now retain];
-      [now release];
-      
-      maybeMiddleClick = YES;
-      middleclickX = 0.0f;
-      middleclickY = 0.0f;
-    } else {
-      if (maybeMiddleClick == YES) {
-        NSTimeInterval elapsedTime = -[touchStartTime timeIntervalSinceNow];
-        if (elapsedTime > 0.5f)
-          maybeMiddleClick = NO;
-      }
-    }
-    
-    if (nFingers > fingersQua) {
-      maybeMiddleClick = NO;
-      middleclickX = 0.0f;
-      middleclickY = 0.0f;
-    }
-    
-    if (nFingers == fingersQua) {
-      Finger* f1 = &data[0];
-      Finger* f2 = &data[1];
-      Finger* f3 = &data[2];
-      
-      if (maybeMiddleClick == YES) {
-        middleclickX = (f1->normalized.pos.x + f2->normalized.pos.x + f3->normalized.pos.x);
-        middleclickY = (f1->normalized.pos.y + f2->normalized.pos.y + f3->normalized.pos.y);
-        middleclickX2 = middleclickX;
-        middleclickY2 = middleclickY;
-        maybeMiddleClick = NO;
+      } else if (nFingers > 1) {
+        state = multi;
       } else {
-        middleclickX2 = (f1->normalized.pos.x + f2->normalized.pos.x + f3->normalized.pos.x);
-        middleclickY2 = (f1->normalized.pos.y + f2->normalized.pos.y + f3->normalized.pos.y);
+        Finger* f = &data[0];
+        touchEndX = f->normalized.pos.x;
+        touchEndY = f->normalized.pos.y;
       }
-    }
+      break;
+    default:
+      break;
   }
   
   [pool release];
   return 0;
-}
-
-/// Relaunch the app when devices are connected/invalidated.
-static void restartApp()
-{
-  NSTask *task = [[[NSTask alloc] init] autorelease];
-  NSMutableArray *args = [NSMutableArray array];
-  [args addObject:@"-c"];
-  [args addObject:[NSString stringWithFormat:@"sleep %f; open \"%@\"", 1.0, [[NSBundle mainBundle] bundlePath]]];
-  [task setLaunchPath:@"/bin/sh"];
-  [task setArguments:args];
-  [task launch];
-  NSLog(@"Restarting app...");
-  
-  [NSApp terminate:NULL];
 }
 
 /// Callback when a multitouch device is added.

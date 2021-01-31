@@ -9,7 +9,4 @@
   NSMenuItem* clickItem;
 }
 - (id)initWithController:(Controller*)ctrl;
-- (void)setChecks;
-- (void)setClick:(id)sender;
-- (void)setTap:(id)sender;
 @end
