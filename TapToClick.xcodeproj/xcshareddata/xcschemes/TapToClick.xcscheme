@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8D1107260486CEB800E47090"
-               BuildableName = "MiddleClick.app"
-               BlueprintName = "MiddleClick"
-               ReferencedContainer = "container:MiddleClick.xcodeproj">
+               BuildableName = "TapToClick.app"
+               BlueprintName = "TapToClick"
+               ReferencedContainer = "container:TapToClick.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8D1107260486CEB800E47090"
-            BuildableName = "MiddleClick.app"
-            BlueprintName = "MiddleClick"
-            ReferencedContainer = "container:MiddleClick.xcodeproj">
+            BuildableName = "TapToClick.app"
+            BlueprintName = "TapToClick"
+            ReferencedContainer = "container:TapToClick.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8D1107260486CEB800E47090"
-            BuildableName = "MiddleClick.app"
-            BlueprintName = "MiddleClick"
-            ReferencedContainer = "container:MiddleClick.xcodeproj">
+            BuildableName = "TapToClick.app"
+            BlueprintName = "TapToClick"
+            ReferencedContainer = "container:TapToClick.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

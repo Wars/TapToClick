@@ -14,7 +14,7 @@
 - (void)openWebsite:(id)sender
 {
   NSURL* url = [NSURL
-                URLWithString:@"https://github.com/DaFuqtor/MiddleClick"];
+                URLWithString:@"https://github.com/larabr/TapToClick"];
   [[NSWorkspace sharedWorkspace] openURL:url];
 }
 
@@ -30,7 +30,7 @@
   
   
   // Add About
-  menuItem = [menu addItemWithTitle:@"About MiddleClick"
+  menuItem = [menu addItemWithTitle:@"About TapToClick"
                              action:@selector(openWebsite:)
                       keyEquivalent:@""];
   [menuItem setTarget:self];
@@ -71,7 +71,7 @@
                   statusItemWithLength:24] retain];
   _statusItem.behavior = NSStatusItemBehaviorRemovalAllowed;
   _statusItem.menu = menu;
-  _statusItem.button.toolTip = @"MiddleClick";
+  _statusItem.button.toolTip = @"TapToClick";
   _statusItem.button.image = icon;
   
   [menu release];
