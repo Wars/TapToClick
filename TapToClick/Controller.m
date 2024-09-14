@@ -104,7 +104,7 @@ double lastClickTime = 0;
     /// Iterate through all the existing entries to arm the notification.
     io_object_t item;
     while ((item = IOIteratorNext(handle))) {
-      CFRelease(item);
+      IOObjectRelease(item);
     }
   }
   
